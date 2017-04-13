@@ -136,18 +136,22 @@ def parse_reports_in_directory(persistent_storage, report_dir="./reports"):
             if report is not None:
                 n_new += 1
                 persistent_storage.save_new_report(report)
-    print "INFO: Found %d file%s, parsed %d new report%s." % (n, "" if n == 1 else "s", n_new, "" if n_new == 1 else "s")
+    print "INFO: Found %d file%s, parsed and saved %d new report%s." % (n, "" if n == 1 else "s", n_new, "" if n_new == 1 else "s")
 
 
-def save_rdns_records(rdns_records, rdns_filename='rdns.pickle'):
-    with open(rdns_filename, "wb") as f:
+def save_rdns_records(rdns_records, rdns_filename='rdns.pickle', rdns_directory="./results"):
+    filepath = os.path.join(rdns_directory, rdns_filename)
+    if not os.path.exists(rdns_directory):
+            os.makedirs(rdns_directory)
+    with open(filepath, "wb") as f:
         print "INFO: Saving rDNS Records to File."
         pickle.dump(rdns_records, f)
 
 
-def load_rdns_records(rdns_filename='rdns.pickle'):
-    if os.path.isfile(rdns_filename):
-        with open(rdns_filename) as f:
+def load_rdns_records(rdns_filename='rdns.pickle', rdns_directory="./results"):
+    filepath = os.path.join(rdns_directory, rdns_filename)
+    if os.path.isfile(filepath):
+        with open(filepath) as f:
             print "INFO: Loading Saved rDNS Records."
             return pickle.load(f)
     else:

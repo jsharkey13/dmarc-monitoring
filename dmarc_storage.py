@@ -1,4 +1,5 @@
 import sqlite3
+import os
 import datetime
 
 __all__ = ['DMARCStorage', 'totimestamp']
@@ -14,8 +15,12 @@ def totimestamp(datetime_object):
 
 class DMARCStorage(object):
 
-    def __init__(self, database_filename='dmarc.sqlite'):
-        self._conn = sqlite3.connect(database_filename)
+    def __init__(self, database_filename='dmarc.sqlite', database_directory="./results"):
+        # Create or connect to the database:
+        database_path = os.path.join(database_directory, database_filename)
+        if not os.path.exists(database_directory):
+            os.makedirs(database_directory)
+        self._conn = sqlite3.connect(database_path)
         # Set automcommit to true and initialise cursor:
         self._conn.isolation_level = None
         self._cur = self._conn.cursor()
@@ -122,6 +127,10 @@ class DMARCStorage(object):
     def get_number_reports(self):
         self._cur.execute("SELECT count(*) FROM dmarc_reports;")
         return self._cur.fetchone()[0]
+
+    def get_count_by_disposition(self):
+        self._cur.execute("SELECT disposition, sum(count) FROM dmarc_records GROUP BY disposition;")
+        return {str(r[0]): r[1] for r in self._cur.fetchall()}
 
     def get_count_by_hostnames(self):
         self._cur.execute("SELECT hostname, ip_address, sum(count) FROM dmarc_records GROUP BY hostname, ip_address;")

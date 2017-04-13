@@ -1,4 +1,6 @@
 import datetime
+import os
+import argparse
 from matplotlib import pyplot as plt
 import matplotlib.dates as mdates
 import matplotlib.patches as mpatches
@@ -6,7 +8,7 @@ import numpy as np
 from dmarc_storage import DMARCStorage
 
 
-def plot_percentage_passing(dates, fail, none, other, passing, category):
+def plot_percentage_passing(dates, fail, none, other, passing, category, folder=None):
 
     fig = plt.figure(facecolor='white', figsize=(12, 8))
     plt.gca().set_title('%s Status on Messages' % category)
@@ -36,10 +38,12 @@ def plot_percentage_passing(dates, fail, none, other, passing, category):
     plt.stackplot(dates, auth_percents, colors=colours, edgecolor='none')
     plt.legend(handles=handles, loc=2)
     fig.autofmt_xdate()
-    fig.savefig('percentage_passing_%s.png' % category, bbox_inches='tight', dpi=600)
+    if folder is not None:
+        fname = os.path.join(folder, 'percentage_passing_%s.png' % category)
+        fig.savefig(fname, bbox_inches='tight', dpi=600)
 
 
-def plot_number_passing(dates, fail, none, other, passing, category):
+def plot_number_passing(dates, fail, none, other, passing, category, folder=None):
     fig = plt.figure(facecolor='white', figsize=(12, 8))
     ind = np.arange(len(dates))
     plt.gca().set_title('%s Status on Messages' % category)
@@ -67,11 +71,14 @@ def plot_number_passing(dates, fail, none, other, passing, category):
     #
     plt.xticks(ind, map(lambda d: datetime.datetime.strftime(d, "%d-%m-%Y"), dates))
     plt.legend(handles=handles, loc=2)
-    fig.autofmt_xdate(ha='center')
-    fig.savefig('number_passing_%s.png' % category, bbox_inches='tight', dpi=600)
+    fig.autofmt_xdate()
+    if folder is not None:
+        fname = os.path.join(folder, 'number_passing_%s.png' % category)
+        fig.savefig(fname, bbox_inches='tight', dpi=600)
 
 
-def generate_report(n_reports, min_time, max_time, by_host, by_receiver, dkim_domains, by_status):
+def generate_report(n_reports, min_time, max_time, by_disposition, by_host, by_receiver,
+                    dkim_domains, by_status, folder=None):
     report = "Isaac Emails From %s to %s\n" % (min_time, max_time)
     report += "\t %d emails in %d reports\n" % (sum(by_host.values()), n_reports)
     report += "\n\n"
@@ -80,6 +87,14 @@ def generate_report(n_reports, min_time, max_time, by_host, by_receiver, dkim_do
     LJUST = 64
     RJUST = 6
     LINELENGTH = 74
+
+    report += "Of all email sent:\n"
+    report += "    - %6d emails have been rejected\n" % by_disposition.get("reject", 0)
+    report += "    - %6d emails have been quarantined\n" % by_disposition.get("quarantine", 0)
+    report += "    - %6d emails had no policy applied\n" % by_disposition.get("none", 0)
+    if by_disposition.get("reject", 0) + by_disposition.get("quarantine", 0) == 0:
+        report += "Publishing a 'reject' policy would have discarded %d emails.\n" % by_status.get("SPF:fail, DKIM:fail", 0)
+    report += "\n\n"
 
     report += "Sender Hostname".ljust(LJUST) + "|" + "Sent".rjust(RJUST) + "\n"
     report += "=" * LINELENGTH + "\n"
@@ -116,8 +131,16 @@ def generate_report(n_reports, min_time, max_time, by_host, by_receiver, dkim_do
     for rec in sorted(by_status.keys(), key=lambda x: by_status[x], reverse=True):
         report += rec.ljust(LJUST) + "|" + str(by_status[rec]).rjust(RJUST) + "\n"
 
-    with open("report.txt", "w") as f:
-        f.write(report)
+    report += "\n\n\n"
+    report += "Policy Applied".ljust(LJUST) + "|" + "Count".rjust(RJUST) + "\n"
+    report += "=" * LINELENGTH + "\n"
+    for rec in sorted(by_disposition.keys(), key=lambda x: by_disposition[x], reverse=True):
+        report += rec.ljust(LJUST) + "|" + str(by_disposition[rec]).rjust(RJUST) + "\n"
+
+    if folder is not None:
+        fname = os.path.join(folder, 'reporty.txt')
+        with open(fname, "w") as report_file:
+            report_file.write(report)
     return report
 
 
@@ -129,19 +152,35 @@ def _parse_and_truncate_timestamp(timestamp):
 
 
 if __name__ == "__main__":
+    # Allow specification of parameters at runtime:
+    options = argparse.ArgumentParser(description="Analyse DMARC reports stored in a databse.")
+    options.add_argument("-w", "--writefiles", help="write reports and graphs to files as well as stdout", action="store_true")
+    options.add_argument("-o", "--outputfolder", help="output report and graphs to specified folder", default="./results")
+    args = options.parse_args()
+
+    # Choose the output folder:
+    dest_folder = args.outputfolder if args.writefiles else None
+    if (dest_folder is not None) and (not os.path.exists(dest_folder)):
+            os.makedirs(dest_folder)
+
+    # Connect to the databse:
     sqlite_db = DMARCStorage()
+
     # Generate a text report summary:
     n_reports = sqlite_db.get_number_reports()
 
     min_t = sqlite_db.get_reporting_start_date()
     max_t = sqlite_db.get_reporting_end_date()
 
+    by_disposition = sqlite_db.get_count_by_disposition()
     by_host = sqlite_db.get_count_by_hostnames()
     by_receiver = sqlite_db.get_count_by_receiver()
     dkim_domains = sqlite_db.get_count_by_dkim_domain()
     by_status = sqlite_db.get_count_by_status_string()
 
-    print generate_report(n_reports, min_t, max_t, by_host, by_receiver, dkim_domains, by_status)
+    print generate_report(n_reports, min_t, max_t, by_disposition, by_host, by_receiver,
+                          dkim_domains, by_status, dest_folder)
+
     # Produce graphs showing SPF status of messages:
     res = sqlite_db.get_raw_spf_status_count_by_timestamp()
     spf_passes = dict()
@@ -159,8 +198,8 @@ if __name__ == "__main__":
     dates = sorted(spf_passes.keys())
     spf_passes = [spf_passes[d] for d in dates]
     spf_fails = [spf_fails[d] for d in dates]
-    plot_number_passing(dates, spf_fails, None, None, spf_passes, "SPF")
-    plot_percentage_passing(dates, spf_fails, None, None, spf_passes, "SPF")
+    plot_number_passing(dates, spf_fails, None, None, spf_passes, "SPF", dest_folder)
+    plot_percentage_passing(dates, spf_fails, None, None, spf_passes, "SPF", dest_folder)
     # Produce graphs showing DKIM status of messages:
     res = sqlite_db.get_raw_dkim_status_count_by_timestamp()
     dkim_passes = dict()
@@ -178,8 +217,8 @@ if __name__ == "__main__":
     dates = sorted(dkim_passes.keys())
     dkim_passes = [dkim_passes[d] for d in dates]
     dkim_fails = [dkim_fails[d] for d in dates]
-    plot_number_passing(dates, dkim_fails, None, None, dkim_passes, "DKIM")
-    plot_percentage_passing(dates, dkim_fails, None, None, dkim_passes, "DKIM")
+    plot_number_passing(dates, dkim_fails, None, None, dkim_passes, "DKIM", dest_folder)
+    plot_percentage_passing(dates, dkim_fails, None, None, dkim_passes, "DKIM", dest_folder)
     # Produce graphs showing DMARC status of messages:
     res = sqlite_db.get_raw_dmarc_status_count_by_timestamp()
     dmarc_passes = dict()
@@ -197,7 +236,7 @@ if __name__ == "__main__":
     dates = sorted(dmarc_passes.keys())
     dmarc_passes = [dmarc_passes[d] for d in dates]
     dmarc_fails = [dmarc_fails[d] for d in dates]
-    plot_number_passing(dates, dmarc_fails, None, None, dmarc_passes, "DMARC")
-    plot_percentage_passing(dates, dmarc_fails, None, None, dmarc_passes, "DMARC")
+    plot_number_passing(dates, dmarc_fails, None, None, dmarc_passes, "DMARC", dest_folder)
+    plot_percentage_passing(dates, dmarc_fails, None, None, dmarc_passes, "DMARC", dest_folder)
     #
     plt.show()
