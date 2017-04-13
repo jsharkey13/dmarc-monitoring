@@ -1,0 +1,10 @@
+# Ignore standard Python asides:
+*.pyc
+*.pickle
+
+# Ignore project related things:
+reports/
+results/
+password
+*.sqlite
+*.xml
