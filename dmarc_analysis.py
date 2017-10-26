@@ -11,9 +11,10 @@ from dmarc_storage import DMARCStorage
 def plot_percentage_passing(dates, fail, none, other, passing, category, folder=None):
 
     fig = plt.figure(facecolor='white', figsize=(12, 8))
-    plt.gca().set_title('%s Status on Messages' % category)
+    plt.gca().set_title('%s Status of Messages' % category)
     plt.gca().set_ylabel('Percentage of Messages Received')
     plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
+    plt.gca().xaxis.set_minor_locator(mdates.DayLocator())
     plt.gca().set_ylim([0, 100])
     red_patch = mpatches.Patch(color='#ef3e36', label='FAIL')
     grey_patch = mpatches.Patch(color='#cccccc', label='NONE')
@@ -45,8 +46,9 @@ def plot_percentage_passing(dates, fail, none, other, passing, category, folder=
 
 def plot_number_passing(dates, fail, none, other, passing, category, folder=None):
     fig = plt.figure(facecolor='white', figsize=(12, 8))
-    ind = np.arange(len(dates))
-    plt.gca().set_title('%s Status on Messages' % category)
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
+    plt.gca().xaxis.set_minor_locator(mdates.DayLocator())
+    plt.gca().set_title('%s Status of Messages' % category)
     plt.gca().set_ylabel('Number of Messages Received')
     red_patch = mpatches.Patch(color='#ef3e36', label='FAIL')
     grey_patch = mpatches.Patch(color='#cccccc', label='NONE')
@@ -55,21 +57,22 @@ def plot_number_passing(dates, fail, none, other, passing, category, folder=None
     fail = np.array(fail)  # Else the + operator appends rather than summing!
     #
     handles = [red_patch]
-    plt.bar(ind, fail, color='#ef3e36', edgecolor='none')
+    plt.bar(dates, fail, color='#ef3e36', edgecolor='none')
     bottom = fail
     if none is not None:
-        plt.bar(ind, none, bottom=bottom, color='#cccccc', edgecolor='none')
+        plt.bar(dates, none, bottom=bottom, color='#cccccc', edgecolor='none')
         handles.append(grey_patch)
         bottom += none
     if other is not None:
-        plt.bar(ind, other, bottom=bottom, color='#666666', edgecolor='none')
+        plt.bar(dates, other, bottom=bottom, color='#666666', edgecolor='none')
         handles.append(dark_patch)
         bottom += other
-    plt.bar(ind, passing, bottom=bottom, color='#509e2e', edgecolor='none')
+    plt.bar(dates, passing, bottom=bottom, color='#509e2e', edgecolor='none')
+    bottom += passing
     handles.append(green_patch)
     handles.reverse()
     #
-    plt.xticks(ind, map(lambda d: datetime.datetime.strftime(d, "%d-%m-%Y"), dates))
+    plt.ylim((0, np.around(bottom.max() + 50, -2)))  # Round max Y value to nearest 100
     plt.legend(handles=handles, loc=2)
     fig.autofmt_xdate()
     if folder is not None:
@@ -80,7 +83,7 @@ def plot_number_passing(dates, fail, none, other, passing, category, folder=None
 def generate_report(n_reports, min_time, max_time, by_disposition, by_host, by_receiver,
                     dkim_domains, by_status, folder=None):
     report = "Isaac Emails From %s to %s\n" % (min_time, max_time)
-    report += "\t %d emails in %d reports\n" % (sum(by_host.values()), n_reports)
+    report += "\t %d emails in %d reports\n" % (sum(by_disposition.values()), n_reports)
     report += "\n\n"
 
     TOPN = 25
@@ -138,7 +141,7 @@ def generate_report(n_reports, min_time, max_time, by_disposition, by_host, by_r
         report += rec.ljust(LJUST) + "|" + str(by_disposition[rec]).rjust(RJUST) + "\n"
 
     if folder is not None:
-        fname = os.path.join(folder, 'reporty.txt')
+        fname = os.path.join(folder, 'report.txt')
         with open(fname, "w") as report_file:
             report_file.write(report)
     return report
@@ -239,4 +242,4 @@ if __name__ == "__main__":
     plot_number_passing(dates, dmarc_fails, None, None, dmarc_passes, "DMARC", dest_folder)
     plot_percentage_passing(dates, dmarc_fails, None, None, dmarc_passes, "DMARC", dest_folder)
     #
-    plt.show()
+    # plt.show()
