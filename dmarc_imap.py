@@ -51,6 +51,8 @@ class ReportDownloader(object):
             pass
 
     def download(self, destination_folder='./reports'):
+        # Keep track of reperts we downloaded this session:
+        reports_downloaded = []
         # Allow skipping of the extra call to login():
         if not self._logged_in:
             self.login()
@@ -96,9 +98,12 @@ class ReportDownloader(object):
             #    if not valid:
             #        continue
             #
-            if (m.get_content_maintype() == 'multipart' or m.get_content_type() in ['application/zip', 'application/gzip']):
+            attachment_types = ['application/zip', 'application/gzip']
+            if (m.get_content_maintype() == 'multipart' or m.get_content_type() in attachment_types):
                 for part in m.walk():
-                    if part.get('Content-Disposition', '').startswith("attachment"):
+                    is_attachment = part.get('Content-Disposition', '').startswith("attachment")
+                    is_inline_attachment = part.get_content_type() in attachment_types
+                    if is_attachment or is_inline_attachment:
                         filename = part.get_filename()
                         # Process the attachment only if named as expected (RFC 7489, Section 7.2.1.1):
                         if RUA_NAME_FORMAT.match(filename):
@@ -106,12 +111,23 @@ class ReportDownloader(object):
                             found = True
                             file_path = os.path.join(destination_folder, filename)
                             # Download the attachment only if it doesn't already exist:
-                            if not os.path.isfile(file_path):
+                            file_exists = os.path.isfile(file_path)
+                            duplicate_name_this_session = filename in reports_downloaded
+                            if not file_exists:
                                 n_new += 1
                                 fp = open(file_path, 'wb')
                                 fp.write(part.get_payload(decode=True))
                                 fp.close()
                                 # Assert only one report per email:
+                                reports_downloaded.append(filename)
+                                break
+                            elif duplicate_name_this_session:
+                                # If there's already a file with this name and we downloaded it *this session*,
+                                # it's likely that it's not the same report but a different one with the same name.
+                                # Google does this if the DNS record policy published changes during a reporting window.
+                                print "WARN: Message (%s) contained a DMARC report with a duplicate name!" % message_subject
+                                print "INFO:   Duplicate report names could indicate the DNS record changed during a reporting window."
+                                print "INFO:   If this is the case, download this report by hand."
                                 break
             # If we expect to only see DMARC emails, note when an email contains no report:
             if self.dmarc_label is not None and not found:
