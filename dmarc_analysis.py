@@ -163,8 +163,10 @@ if __name__ == "__main__":
 
     # Choose the output folder:
     dest_folder = args.outputfolder if args.writefiles else None
+    if dest_folder is None:
+        print "Not saving report or graphs to disk!"
     if (dest_folder is not None) and (not os.path.exists(dest_folder)):
-            os.makedirs(dest_folder)
+        os.makedirs(dest_folder)
 
     # Connect to the databse:
     sqlite_db = DMARCStorage()
