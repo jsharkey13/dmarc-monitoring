@@ -22,18 +22,22 @@ class DMARCRecord(object):
         self.ip = str(record_xml.find('source_ip').text)
         self.host = _lookup_ip(self.ip)
         # Policy Result:
-        self.disposition = str(record_xml.row.policy_evaluated.disposition.text)
+        policy_evaluated = record_xml.row.policy_evaluated
+        self.disposition = str(policy_evaluated.disposition.text)
+        self.reason = None
         self.spf_pass = None
         self.dkim_pass = None
-        if record_xml.row.policy_evaluated.spf is not None:
-            assert str(record_xml.row.policy_evaluated.spf.text) in ['pass', 'fail']
-            self.spf_pass = (str(record_xml.row.policy_evaluated.spf.text) == 'pass')
-        if record_xml.row.policy_evaluated.dkim is not None:
-            assert str(record_xml.row.policy_evaluated.dkim.text) in ['pass', 'fail']
-            self.dkim_pass = (str(record_xml.row.policy_evaluated.dkim.text) == 'pass')
+        if policy_evaluated.spf is not None:
+            assert str(policy_evaluated.spf.text) in ['pass', 'fail']
+            self.spf_pass = (str(policy_evaluated.spf.text) == 'pass')
+        if policy_evaluated.dkim is not None:
+            assert str(policy_evaluated.dkim.text) in ['pass', 'fail']
+            self.dkim_pass = (str(policy_evaluated.dkim.text) == 'pass')
         else:
             # Manually sanitise the data; if DKIM wasn't included, it failed.
             self.dkim_pass = False
+        if policy_evaluated.reason is not None and policy_evaluated.reason.type is not None:
+            self.reason = str(policy_evaluated.reason.type.text)
         # Other Data:
         self.header_from = str(record_xml.identifiers.header_from.text) if record_xml.identifiers.header_from else None
         self.envelope_from = str(record_xml.identifiers.envelope_from.text) if record_xml.identifiers.envelope_from else None

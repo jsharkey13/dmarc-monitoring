@@ -46,6 +46,7 @@ class DMARCStorage(object):
                                 ip_address TEXT,
                                 hostname TEXT,
                                 disposition TEXT,
+                                reason TEXT,
                                 spf_pass INTEGER,
                                 dkim_pass INTEGER,
                                 header_from TEXT,
@@ -104,8 +105,8 @@ class DMARCStorage(object):
                            totimestamp(report.start_date), totimestamp(report.end_date)])
         # Persist each record of that report with a generated ID:
         for rec_id, rec in enumerate(report.records):
-            self._cur.execute("INSERT INTO dmarc_records VALUES (?,?,?,?,?,?,?,?,?,?);",
-                              [report.id, rec_id, rec.ip, rec.host, rec.disposition,
+            self._cur.execute("INSERT INTO dmarc_records VALUES (?,?,?,?,?,?,?,?,?,?,?);",
+                              [report.id, rec_id, rec.ip, rec.host, rec.disposition, rec.reason,
                                rec.spf_pass, rec.dkim_pass, rec.header_from, rec.envelope_from,
                                rec.count])
             # Persist the SPF data:
