@@ -88,7 +88,7 @@ def generate_report(n_reports, min_time, max_time, by_disposition, by_host, by_r
 
     TOPN = 25
     LJUST = 64
-    RJUST = 6
+    RJUST = 7
     LINELENGTH = 74
 
     report += "Of all email sent:\n"
