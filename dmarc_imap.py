@@ -18,8 +18,12 @@ __all__ = ['ReportDownloader', 'IMAPException']
 
 # DMARC report names are of the form:
 #     receiverdomain!senderdomain!startt!endt.zip
-RUA_NAME_FORMAT = re.compile("^(?:[A-Za-z0-9]+\.[A-Za-z]+[A-Za-z.]*!){2}[0-9]+![0-9]+(![a-z-0-9]+)?(?:.xml)?(?:\.zip|\.xml\.gz)$")
-
+pattern = r'''^(?:[A-Za-z0-9.\-]+!){2} # any sequence of letters an numbers dashes and dots,
+                                       # at the begginning of the string, with an exclamation mark as last charachter
+              [0-9]{10}!               # 10 digit of the timestamp followed by an exclamation mark
+              [0-9]{10}.               # 10 digit of the timestamp followed by a dot
+              (xml|zip|gz|xml.gz)$     # any of the following extension at the end of the string'''
+RUA_NAME_FORMAT = re.compile(pattern,re.X)
 
 class IMAPException(Exception):
     pass
