@@ -70,6 +70,8 @@ class ReportDownloader(object):
             if rv != "OK":
                 print "ERROR: Problem selecting label!"
                 raise IMAPException("Error selecting label!")
+        else:
+            self._mailbox.select()
 
         # Search for all emails matching the read/unread criteria:
         rv, data = self._mailbox.search(None, self._search_param)
